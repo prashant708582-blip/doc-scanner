@@ -26,7 +26,6 @@ st.set_page_config(
 WORK_DIR = "work"
 os.makedirs(WORK_DIR, exist_ok=True)
 
-# ---------- THEME STATE ----------
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
@@ -69,7 +68,6 @@ THEMES = {
 
 T = THEMES[st.session_state.theme]
 
-# ---------- DYNAMIC CSS ----------
 st.markdown(f"""
 <style>
     .stApp {{ background: {T['bg']}; background-attachment: fixed; }}
@@ -177,16 +175,10 @@ st.markdown(f"""
     }}
     hr {{ border: none; height: 1px; background: {T['hr']}; margin: 2rem 0; }}
     img {{ border-radius: 12px; }}
-    
-    /* Confidence word boxes */
     .word-box {{
-        display: inline-block;
-        padding: 3px 8px;
-        margin: 2px;
-        border-radius: 6px;
-        font-size: 0.9rem;
+        display: inline-block; padding: 3px 8px; margin: 2px;
+        border-radius: 6px; font-size: 0.9rem;
         font-family: 'Courier New', monospace;
-        transition: all 0.2s ease;
     }}
     .word-high {{ background: rgba(16, 185, 129, 0.25); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.5); }}
     .word-mid {{ background: rgba(245, 158, 11, 0.25); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.5); }}
@@ -194,7 +186,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- CONFETTI ----------
+
 def trigger_confetti():
     components.html("""
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
@@ -211,9 +203,7 @@ def trigger_confetti():
     """, height=0)
 
 
-# ---------- CONFIDENCE ANALYSIS ----------
 def get_word_confidences(image_path, lang="hin+eng"):
-    """Har word ka confidence score nikalta hai."""
     try:
         img = Image.open(image_path)
         data = pytesseract.image_to_data(
@@ -221,7 +211,6 @@ def get_word_confidences(image_path, lang="hin+eng"):
             output_type=pytesseract.Output.DICT,
             config='--oem 3 --psm 3'
         )
-
         words = []
         for i, txt in enumerate(data['text']):
             if txt.strip():
@@ -241,12 +230,10 @@ def get_word_confidences(image_path, lang="hin+eng"):
 
 
 def render_confidence_html(words):
-    """Words ko colored boxes me render karta hai."""
     if not words:
         return "<p>No confidence data available</p>"
 
     html = "<div style='line-height: 2.2; padding: 1rem; background: rgba(0,0,0,0.15); border-radius: 12px;'>"
-
     current_line = -1
     for w in words:
         if w['line'] != current_line:
@@ -262,7 +249,6 @@ def render_confidence_html(words):
         else:
             cls = "word-low"
 
-        # Escape HTML
         safe_text = w['text'].replace("<", "&lt;").replace(">", "&gt;").replace("&", "&amp;")
         html += f"<span class='word-box {cls}' title='Confidence: {conf}%'>{safe_text}</span> "
 
@@ -271,7 +257,6 @@ def render_confidence_html(words):
 
 
 def calculate_accuracy(words):
-    """Overall accuracy percentage nikalta hai."""
     if not words:
         return 0, 0, 0, 0
     confs = [w['conf'] for w in words]
@@ -282,29 +267,22 @@ def calculate_accuracy(words):
     return avg, high, mid, low
 
 
-# ---------- TEXT-TO-SPEECH ----------
 def generate_tts(text, lang="en"):
-    """Text-to-speech audio generate karta hai (gTTS)."""
     try:
-        # Hindi detection
         has_hindi = any('\u0900' <= c <= '\u097F' for c in text)
         tts_lang = "hi" if (lang == "hi" or (lang == "hin+eng" and has_hindi)) else "en"
-
-        # Text ko limit karo (gTTS max ~200 chars per request safely)
         clean_text = text.strip()[:5000]
         if not clean_text:
             return None
-
         tts = gTTS(text=clean_text, lang=tts_lang, slow=False)
         audio_bytes = BytesIO()
         tts.write_to_fp(audio_bytes)
         audio_bytes.seek(0)
         return audio_bytes.read()
-    except Exception as e:
+    except Exception:
         return None
 
 
-# ---------- EXPORTS ----------
 def text_to_docx(text, docx_path):
     doc = Document()
     for section in doc.sections:
@@ -341,7 +319,6 @@ def text_to_markdown(text, md_path, title="Scanned Document"):
     return md_path
 
 
-# ---------- HERO ----------
 st.markdown("""
 <div class="hero">
     <h1>📄 DocScan Pro</h1>
@@ -355,7 +332,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------- SIDEBAR ----------
 with st.sidebar:
     st.markdown("## 🎨 Appearance")
     theme_choice = st.radio(
@@ -408,7 +384,6 @@ with st.sidebar:
     export_txt = st.checkbox("📃 TXT", value=False)
     export_md = st.checkbox("📋 Markdown", value=False)
 
-# ---------- UPLOAD ----------
 st.markdown("### 📤 Upload Your Document")
 uploaded_files = st.file_uploader(
     "Choose files",
@@ -417,7 +392,6 @@ uploaded_files = st.file_uploader(
     label_visibility="collapsed"
 )
 
-# ---------- MAIN ----------
 if uploaded_files:
     st.success(f"✅ {len(uploaded_files)} file(s) uploaded — processing started...")
 
@@ -464,7 +438,6 @@ if uploaded_files:
             st.error(f"Page {idx+1}: OCR fail — {e}")
             text = ""
 
-        # Confidence analysis
         words = get_word_confidences(enhanced_path, lang=lang_code)
 
         all_texts.append(text)
@@ -478,13 +451,11 @@ if uploaded_files:
     if confetti_on:
         trigger_confetti()
 
-    # ---------- STATS ----------
     st.markdown("### 📊 Summary")
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     total_chars = sum(len(t) for t in all_texts)
     total_words = sum(len(t.split()) for t in all_texts)
 
-    # Overall accuracy
     all_words_flat = [w for page_words in all_confidences for w in page_words]
     avg_conf, high_count, mid_count, low_count = calculate_accuracy(all_words_flat)
 
@@ -499,12 +470,10 @@ if uploaded_files:
 
     st.markdown("")
 
-    # ---------- TABS ----------
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📄 Visual", "📊 Confidence", "🔊 Listen", "📝 Edit Text", "⬇️ Downloads"
     ])
 
-    # ---- VISUAL ----
     with tab1:
         for idx, uploaded in enumerate(uploaded_files):
             with st.expander(f"📄 Page {idx+1} — {uploaded.name}", expanded=(idx == 0)):
@@ -519,34 +488,31 @@ if uploaded_files:
                     st.markdown("**✨ Enhanced**")
                     st.image(all_enhanced_paths[idx], use_column_width=True)
 
-    # ---- CONFIDENCE ----
+                tables = detect_tables(all_enhanced_paths[idx])
+                if tables:
+                    st.info(f"📊 {len(tables)} table(s) detected")
+
     with tab2:
         st.markdown("### 📊 OCR Confidence Analysis")
-        st.caption("🟢 High (80%+) · 🟡 Medium (60-79%) · 🔴 Low (<60%) — hover karke exact % dekho")
-        st.markdown("")
+        st.caption("🟢 High (80%+) · 🟡 Medium (60-79%) · 🔴 Low (<60%)")
 
-        # Overall stats
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #10b981;">{high_count}</p><p class="stat-label">High Confidence</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #10b981;">{high_count}</p><p class="stat-label">High</p></div>', unsafe_allow_html=True)
         with col_b:
-            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #f59e0b;">{mid_count}</p><p class="stat-label">Medium Confidence</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #f59e0b;">{mid_count}</p><p class="stat-label">Medium</p></div>', unsafe_allow_html=True)
         with col_c:
-            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #ef4444;">{low_count}</p><p class="stat-label">Low Confidence</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #ef4444;">{low_count}</p><p class="stat-label">Low</p></div>', unsafe_allow_html=True)
 
         st.markdown("")
-
         for idx, uploaded in enumerate(uploaded_files):
             st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
             html = render_confidence_html(all_confidences[idx])
             st.markdown(html, unsafe_allow_html=True)
             st.markdown("---")
 
-    # ---- TEXT-TO-SPEECH ----
     with tab3:
         st.markdown("### 🔊 Listen to Your Document")
-        st.caption("OCR text ko audio me suno — Hindi ya English auto-detect")
-
         for idx, uploaded in enumerate(uploaded_files):
             st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
 
@@ -567,7 +533,6 @@ if uploaded_files:
 
             st.markdown("---")
 
-    # ---- EDIT TEXT ----
     with tab4:
         for idx, uploaded in enumerate(uploaded_files):
             st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
@@ -578,7 +543,6 @@ if uploaded_files:
             all_texts[idx] = edited_text
             st.markdown("---")
 
-    # ---- DOWNLOADS ----
     with tab5:
         st.markdown("### 📥 Download Your Files")
         st.markdown("")
@@ -655,7 +619,6 @@ if uploaded_files:
                             use_container_width=True
                         )
 
-# ---------- EMPTY STATE ----------
 else:
     st.markdown(f"""
     <div style="text-align: center; padding: 3rem 2rem; 
@@ -672,20 +635,17 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("### ✨ Powerful Features")
-    st.markdown("")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">📊</span><div class="feat-title">Confidence Score</div><div class="feat-desc">Har word ka confidence % — galat words red me highlight</div></div>', unsafe_allow_html=True)
-        st.markdown("")
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">✂️</span><div class="feat-title">Auto Page Detection</div><div class="feat-desc">Smart cropping — extra background auto remove</div></div>', unsafe_allow_html=True)
-
-    with col2:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">🔊</span><div class="feat-title">Text-to-Speech</div><div class="feat-desc">OCR text ko Hindi ya English me suno</div></div>', unsafe_allow_html=True)
-        st.markdown("")
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌐</span><div class="feat-title">Hindi + English OCR</div><div class="feat-desc">Dono bhashayein ek saath — Hinglish bhi</div></div>', unsafe_allow_html=True)
-
-    with col3:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">📥</span><div class="feat-title">Multi-Format Export</div><div class="feat-desc">PDF, DOCX, TXT, Markdown — chaaro formats</div></div>', unsafe_allow
+st.markdown("---")
+st.markdown(f"""
+<div style="text-align: center; padding: 2rem 0; color: {T['text_muted']}; font-size: 0.9rem;">
+    <div style="font-size: 1.3rem; font-weight: 800; 
+                background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                background-clip: text; margin-bottom: 0.5rem;">
+        📄 DocScan Pro
+    </div>
+    <div style="color: {T['text_muted']};">
+        Powered by Streamlit · Tesseract OCR · OpenCV
+    </div>
+</div>
+""", unsafe_allow_html=True)
