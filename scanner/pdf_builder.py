@@ -81,4 +81,37 @@ def multi_page_pdf(texts, pdf_path):
         c.setFont(font, 11)
         y = height - margin
 
-        for raw
+        for raw_line in text.split("\n"):
+            line = raw_line.rstrip()
+            if not line:
+                y -= line_height
+                if y < margin:
+                    c.showPage()
+                    c.setFont(font, 11)
+                    y = height - margin
+                continue
+
+            for chunk in _wrap_line(line, max_chars):
+                c.drawString(margin, y, chunk)
+                y -= line_height
+                if y < margin:
+                    c.showPage()
+                    c.setFont(font, 11)
+                    y = height - margin
+
+    c.save()
+    return pdf_path
+
+
+def images_to_pdf(image_paths, pdf_path):
+    from PIL import Image
+    images = []
+    for p in image_paths:
+        img = Image.open(p)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        images.append(img)
+
+    if images:
+        images[0].save(pdf_path, save_all=True, append_images=images[1:])
+    return pdf_path
