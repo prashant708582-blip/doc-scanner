@@ -1,7 +1,8 @@
 streamlit
-opencv-python-headless
+paddlepaddle
+paddleocr
 numpy
-pytesseract
+opencv-python-headless
 Pillow
 reportlab
 imutils
