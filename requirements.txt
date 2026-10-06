@@ -8,4 +8,3 @@ imutils
 pymupdf
 python-docx
 gTTS
-pypdf
