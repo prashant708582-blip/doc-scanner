@@ -9,9 +9,8 @@ from scanner import (
     text_to_pdf, multi_page_pdf, images_to_pdf
 )
 
-# ---------- PAGE CONFIG ----------
 st.set_page_config(
-    page_title="DocScan Pro",
+    page_title="DocScan Pro — Hindi + English OCR",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -20,320 +19,228 @@ st.set_page_config(
 WORK_DIR = "work"
 os.makedirs(WORK_DIR, exist_ok=True)
 
-# ---------- DARK THEME CSS ----------
-st.markdown("""
+# ---------- THEME STATE ----------
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+# ---------- THEME COLORS ----------
+THEMES = {
+    "dark": {
+        "bg": "radial-gradient(ellipse at top, #1a1a2e 0%, #0f0f1e 50%, #000000 100%)",
+        "text": "#e2e8f0",
+        "text_muted": "#94a3b8",
+        "accent": "#a78bfa",
+        "accent2": "#f093fb",
+        "sidebar_bg": "linear-gradient(180deg, #0f0f1e 0%, #1a1a2e 100%)",
+        "card_bg": "linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7))",
+        "card_border": "rgba(102, 126, 234, 0.25)",
+        "input_bg": "rgba(30, 41, 59, 0.8)",
+        "input_border": "rgba(167, 139, 250, 0.4)",
+        "upload_bg": "linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1))",
+        "upload_border": "rgba(167, 139, 250, 0.5)",
+        "hr": "linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.5), transparent)",
+        "scroll_track": "#0f0f1e",
+        "shadow": "rgba(102, 126, 234, 0.4)",
+    },
+    "light": {
+        "bg": "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)",
+        "text": "#0f172a",
+        "text_muted": "#64748b",
+        "accent": "#667eea",
+        "accent2": "#764ba2",
+        "sidebar_bg": "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+        "card_bg": "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        "card_border": "rgba(102, 126, 234, 0.3)",
+        "input_bg": "#ffffff",
+        "input_border": "rgba(102, 126, 234, 0.4)",
+        "upload_bg": "linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%)",
+        "upload_border": "rgba(102, 126, 234, 0.5)",
+        "hr": "linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.4), transparent)",
+        "scroll_track": "#f1f5f9",
+        "shadow": "rgba(102, 126, 234, 0.2)",
+    }
+}
+
+T = THEMES[st.session_state.theme]
+
+# ---------- DYNAMIC CSS ----------
+st.markdown(f"""
 <style>
-    /* ---- GLOBAL DARK BG ---- */
-    .stApp {
-        background: radial-gradient(ellipse at top, #1a1a2e 0%, #0f0f1e 50%, #000000 100%);
+    .stApp {{
+        background: {T['bg']};
         background-attachment: fixed;
-    }
+    }}
+    #MainMenu, footer, header {{visibility: hidden;}}
+    h1, h2, h3, h4, h5, h6, p, span, div, label {{
+        color: {T['text']} !important;
+    }}
     
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* ---- TEXT COLORS ---- */
-    h1, h2, h3, h4, h5, h6, p, span, div, label {
-        color: #e2e8f0 !important;
-    }
-    
-    /* ---- HERO HEADER ---- */
-    .hero {
+    .hero {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-        padding: 3rem 2rem;
+        padding: 2.5rem 2rem;
         border-radius: 24px;
         text-align: center;
         margin-bottom: 2rem;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4),
-                    0 0 100px rgba(118, 75, 162, 0.3);
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .hero::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-        animation: rotate 20s linear infinite;
-    }
-    @keyframes rotate {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    .hero h1 {
-        font-size: 3rem;
+        box-shadow: 0 20px 60px {T['shadow']};
+        border: 1px solid rgba(255,255,255,0.15);
+    }}
+    .hero h1 {{
+        font-size: 2.8rem;
         font-weight: 800;
         margin: 0;
         color: #ffffff !important;
         letter-spacing: -1px;
-        text-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        position: relative;
-        z-index: 1;
-    }
-    .hero p {
-        font-size: 1.15rem;
-        margin-top: 0.8rem;
+        text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }}
+    .hero p {{
+        font-size: 1.1rem;
+        margin-top: 0.6rem;
         color: rgba(255,255,255,0.95) !important;
-        position: relative;
-        z-index: 1;
-    }
-    .hero-badges {
-        margin-top: 1.2rem;
-        position: relative;
-        z-index: 1;
-    }
-    .hero-badge {
+    }}
+    .hero-badge {{
         display: inline-block;
-        background: rgba(0,0,0,0.3);
-        padding: 8px 18px;
+        background: rgba(0,0,0,0.25);
+        padding: 6px 16px;
         border-radius: 25px;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         margin: 4px;
         color: #ffffff !important;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.25);
+        border: 1px solid rgba(255,255,255,0.3);
         font-weight: 500;
-    }
+    }}
     
-    /* ---- SIDEBAR ---- */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f0f1e 0%, #1a1a2e 100%);
-        border-right: 1px solid rgba(102, 126, 234, 0.3);
-    }
-    section[data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
-    }
-    section[data-testid="stSidebar"] h2 {
-        color: #a78bfa !important;
-        font-size: 1.15rem;
+    section[data-testid="stSidebar"] {{
+        background: {T['sidebar_bg']};
+        border-right: 1px solid {T['card_border']};
+    }}
+    section[data-testid="stSidebar"] h2 {{
+        color: {T['accent']} !important;
+        font-size: 1.1rem;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid rgba(167, 139, 250, 0.3);
-        font-weight: 700;
-    }
-    
-    /* ---- SIDEBAR INPUTS ---- */
+        border-bottom: 2px solid {T['card_border']};
+    }}
     section[data-testid="stSidebar"] select,
-    section[data-testid="stSidebar"] input {
-        background: rgba(30, 41, 59, 0.8) !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(167, 139, 250, 0.4) !important;
+    section[data-testid="stSidebar"] input {{
+        background: {T['input_bg']} !important;
+        color: {T['text']} !important;
+        border: 1px solid {T['input_border']} !important;
         border-radius: 10px !important;
-    }
-    section[data-testid="stSidebar"] select:hover {
-        border-color: #a78bfa !important;
-    }
+    }}
     
-    /* ---- FILE UPLOADER ---- */
-    [data-testid="stFileUploader"] {
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-        border: 2px dashed rgba(167, 139, 250, 0.5);
+    [data-testid="stFileUploader"] {{
+        background: {T['upload_bg']};
+        border: 2px dashed {T['upload_border']};
         border-radius: 20px;
         padding: 2rem;
         transition: all 0.3s ease;
-    }
-    [data-testid="stFileUploader"]:hover {
-        border-color: #a78bfa;
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
-        box-shadow: 0 0 40px rgba(167, 139, 250, 0.3);
-    }
-    [data-testid="stFileUploader"] label {
-        color: #a78bfa !important;
-        font-weight: 600;
-    }
+    }}
+    [data-testid="stFileUploader"]:hover {{
+        border-color: {T['accent']};
+        box-shadow: 0 0 40px {T['shadow']};
+    }}
     
-    /* ---- BUTTONS ---- */
-    .stButton > button,
-    .stDownloadButton > button {
+    .stButton > button, .stDownloadButton > button {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white !important;
         border: none;
         border-radius: 12px;
         padding: 0.7rem 1.8rem;
         font-weight: 700;
-        letter-spacing: 0.5px;
+        box-shadow: 0 8px 24px {T['shadow']};
         transition: all 0.3s ease;
-        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-        text-transform: none;
-    }
-    .stButton > button:hover,
-    .stDownloadButton > button:hover {
+    }}
+    .stButton > button:hover, .stDownloadButton > button:hover {{
         transform: translateY(-3px);
-        box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6),
-                    0 0 40px rgba(167, 139, 250, 0.5);
+        box-shadow: 0 12px 32px {T['shadow']};
         color: white !important;
-    }
+    }}
     
-    /* ---- STAT CARDS ---- */
-    .stat-card {
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+    .stat-card {{
+        background: {T['card_bg']};
         padding: 1.5rem 1rem;
         border-radius: 18px;
         text-align: center;
-        border: 1px solid rgba(167, 139, 250, 0.3);
-        backdrop-filter: blur(10px);
+        border: 1px solid {T['card_border']};
         transition: all 0.3s ease;
-    }
-    .stat-card:hover {
+    }}
+    .stat-card:hover {{
         transform: translateY(-5px);
-        border-color: #a78bfa;
-        box-shadow: 0 10px 30px rgba(167, 139, 250, 0.3);
-    }
-    .stat-number {
+        border-color: {T['accent']};
+        box-shadow: 0 10px 30px {T['shadow']};
+    }}
+    .stat-number {{
         font-size: 2.2rem;
         font-weight: 800;
         margin: 0;
-        background: linear-gradient(135deg, #a78bfa 0%, #f093fb 100%);
+        background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-    }
-    .stat-label {
+    }}
+    .stat-label {{
         font-size: 0.85rem;
-        color: #94a3b8 !important;
+        color: {T['text_muted']} !important;
         margin: 0.3rem 0 0 0;
-        font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 1px;
-    }
+    }}
     
-    /* ---- FEATURE CARDS ---- */
-    .feat-card {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.7) 100%);
+    .feat-card {{
+        background: {T['card_bg']};
         padding: 1.8rem 1.5rem;
         border-radius: 18px;
-        border: 1px solid rgba(102, 126, 234, 0.25);
-        transition: all 0.4s ease;
+        border: 1px solid {T['card_border']};
         height: 100%;
-        backdrop-filter: blur(10px);
-    }
-    .feat-card:hover {
+        transition: all 0.4s ease;
+    }}
+    .feat-card:hover {{
         transform: translateY(-8px);
-        border-color: #a78bfa;
-        box-shadow: 0 15px 40px rgba(167, 139, 250, 0.35),
-                    0 0 60px rgba(118, 75, 162, 0.2);
-    }
-    .feat-icon {
-        font-size: 2.5rem;
-        margin-bottom: 0.8rem;
-        display: block;
-    }
-    .feat-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: #a78bfa !important;
-        margin-bottom: 0.5rem;
-    }
-    .feat-desc {
-        font-size: 0.9rem;
-        color: #94a3b8 !important;
-        line-height: 1.6;
-    }
+        border-color: {T['accent']};
+        box-shadow: 0 15px 40px {T['shadow']};
+    }}
+    .feat-icon {{ font-size: 2.5rem; margin-bottom: 0.8rem; display: block; }}
+    .feat-title {{ font-size: 1.1rem; font-weight: 700; color: {T['accent']} !important; margin-bottom: 0.5rem; }}
+    .feat-desc {{ font-size: 0.9rem; color: {T['text_muted']} !important; line-height: 1.6; }}
     
-    /* ---- INFO/SUCCESS MSG ---- */
-    .stAlert {
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
-        border: 1px solid rgba(167, 139, 250, 0.4) !important;
-        border-radius: 12px !important;
-        color: #e2e8f0 !important;
-    }
-    .stSuccess {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%) !important;
-        border: 1px solid rgba(16, 185, 129, 0.5) !important;
-    }
-    
-    /* ---- EXPANDER ---- */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%) !important;
-        border-radius: 12px !important;
-        color: #a78bfa !important;
-        font-weight: 600 !important;
-        border: 1px solid rgba(167, 139, 250, 0.2) !important;
-    }
-    details[open] {
-        background: rgba(15, 23, 42, 0.5);
-        border-radius: 12px;
-    }
-    
-    /* ---- TABS ---- */
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
-        background: rgba(30, 41, 59, 0.5);
+        background: {T['card_bg']};
         padding: 8px;
         border-radius: 14px;
-        border: 1px solid rgba(167, 139, 250, 0.2);
-    }
-    .stTabs [data-baseweb="tab"] {
+        border: 1px solid {T['card_border']};
+    }}
+    .stTabs [data-baseweb="tab"] {{
         border-radius: 10px;
         padding: 10px 24px;
         font-weight: 600;
-        color: #94a3b8;
-        background: transparent;
-    }
-    .stTabs [aria-selected="true"] {
+        color: {T['text_muted']};
+    }}
+    .stTabs [aria-selected="true"] {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         color: white !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5);
-    }
+    }}
     
-    /* ---- TEXT AREA ---- */
-    .stTextArea textarea {
-        background: rgba(15, 23, 42, 0.7) !important;
-        color: #e2e8f0 !important;
-        border: 1px solid rgba(167, 139, 250, 0.3) !important;
+    .stTextArea textarea {{
+        background: {T['input_bg']} !important;
+        color: {T['text']} !important;
+        border: 1px solid {T['input_border']} !important;
         border-radius: 12px !important;
-        font-family: 'Courier New', monospace !important;
-    }
-    .stTextArea textarea:focus {
-        border-color: #a78bfa !important;
-        box-shadow: 0 0 20px rgba(167, 139, 250, 0.3) !important;
-    }
+    }}
     
-    /* ---- RADIO BUTTONS ---- */
-    section[data-testid="stSidebar"] .stRadio label {
-        color: #cbd5e1 !important;
-    }
-    
-    /* ---- CHECKBOXES ---- */
-    section[data-testid="stSidebar"] .stCheckbox label {
-        color: #cbd5e1 !important;
-    }
-    
-    /* ---- PROGRESS BAR ---- */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #667eea 0%, #f093fb 100%) !important;
-    }
-    
-    /* ---- SCROLLBAR ---- */
-    ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #0f0f1e;
-    }
-    ::-webkit-scrollbar-thumb {
+    ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+    ::-webkit-scrollbar-track {{ background: {T['scroll_track']}; }}
+    ::-webkit-scrollbar-thumb {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 10px;
-    }
+    }}
     
-    /* ---- GLOWING DIVIDER ---- */
-    hr {
+    hr {{
         border: none;
         height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.5), transparent);
+        background: {T['hr']};
         margin: 2rem 0;
-    }
-    
-    /* ---- IMAGES ---- */
-    img {
-        border-radius: 12px;
-    }
+    }}
+    img {{ border-radius: 12px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -342,17 +249,32 @@ st.markdown("""
 <div class="hero">
     <h1>📄 DocScan Pro</h1>
     <p>AI-Powered Document Scanner · Hindi + English OCR</p>
-    <div class="hero-badges">
+    <div style="margin-top: 1rem;">
         <span class="hero-badge">✨ Auto-Crop</span>
         <span class="hero-badge">🔍 Smart OCR</span>
         <span class="hero-badge">📑 PDF Export</span>
-        <span class="hero-badge">⚡ Multi-Page</span>
+        <span class="hero-badge">🌗 Theme Toggle</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------- SIDEBAR ----------
 with st.sidebar:
+    # Theme Toggle
+    st.markdown("## 🎨 Appearance")
+    theme_choice = st.radio(
+        "Theme",
+        ["🌙 Dark", "☀️ Light"],
+        index=0 if st.session_state.theme == "dark" else 1,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    new_theme = "dark" if "Dark" in theme_choice else "light"
+    if new_theme != st.session_state.theme:
+        st.session_state.theme = new_theme
+        st.rerun()
+
+    st.markdown("---")
     st.markdown("## ⚙️ Configuration")
     st.markdown("")
 
@@ -387,7 +309,6 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 🔧 Advanced")
-    
     handwriting = st.checkbox("✍️ Handwriting mode", value=False)
     auto_rot = st.checkbox("🔄 Auto-rotate pages", value=True)
 
@@ -400,27 +321,11 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); 
-                padding: 1rem; border-radius: 12px; 
-                border: 1px solid rgba(167, 139, 250, 0.3);">
-        <div style="font-size: 0.85rem; color: #a78bfa; font-weight: 700; margin-bottom: 0.5rem;">
-            💡 Pro Tip
-        </div>
-        <div style="font-size: 0.8rem; color: #94a3b8; line-height: 1.6;">
-            Best results ke liye:<br>
-            • 300 DPI scan<br>
-            • Straight angle<br>
-            • Good lighting<br>
-            • Black & white mode
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    theme_emoji = "🌙" if st.session_state.theme == "dark" else "☀️"
+    st.caption(f"{theme_emoji} Current theme: **{st.session_state.theme.title()}**")
 
-# ---------- UPLOAD SECTION ----------
+# ---------- UPLOAD ----------
 st.markdown("### 📤 Upload Your Document")
-st.markdown("")
-
 uploaded_files = st.file_uploader(
     "Choose files",
     type=["jpg", "jpeg", "png", "bmp", "tiff"],
@@ -494,36 +399,13 @@ if uploaded_files:
     total_words = sum(len(t.split()) for t in all_texts)
 
     with col_s1:
-        st.markdown(f"""
-        <div class="stat-card">
-            <p class="stat-number">{len(uploaded_files)}</p>
-            <p class="stat-label">Pages</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(f'<div class="stat-card"><p class="stat-number">{len(uploaded_files)}</p><p class="stat-label">Pages</p></div>', unsafe_allow_html=True)
     with col_s2:
-        st.markdown(f"""
-        <div class="stat-card">
-            <p class="stat-number">{total_words}</p>
-            <p class="stat-label">Words</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(f'<div class="stat-card"><p class="stat-number">{total_words}</p><p class="stat-label">Words</p></div>', unsafe_allow_html=True)
     with col_s3:
-        st.markdown(f"""
-        <div class="stat-card">
-            <p class="stat-number">{total_chars}</p>
-            <p class="stat-label">Characters</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(f'<div class="stat-card"><p class="stat-number">{total_chars}</p><p class="stat-label">Characters</p></div>', unsafe_allow_html=True)
     with col_s4:
-        st.markdown(f"""
-        <div class="stat-card">
-            <p class="stat-number">{len(all_texts)}</p>
-            <p class="stat-label">Completed</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="stat-card"><p class="stat-number">{len(all_texts)}</p><p class="stat-label">Completed</p></div>', unsafe_allow_html=True)
 
     st.markdown("")
 
@@ -603,16 +485,16 @@ if uploaded_files:
 
 # ---------- EMPTY STATE ----------
 else:
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align: center; padding: 3rem 2rem; 
-                background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
-                border-radius: 20px; border: 2px dashed rgba(167, 139, 250, 0.4);
+                background: {T['upload_bg']};
+                border-radius: 20px; border: 2px dashed {T['upload_border']};
                 margin: 2rem 0;">
         <div style="font-size: 4rem; margin-bottom: 1rem;">📤</div>
-        <div style="font-size: 1.4rem; color: #a78bfa; font-weight: 700; margin-bottom: 0.5rem;">
+        <div style="font-size: 1.4rem; color: {T['accent']}; font-weight: 700; margin-bottom: 0.5rem;">
             Upload your document to get started
         </div>
-        <div style="color: #94a3b8; font-size: 1rem;">
+        <div style="color: {T['text_muted']}; font-size: 1rem;">
             Supports JPG, PNG, BMP, TIFF · Multiple files allowed
         </div>
     </div>
@@ -624,24 +506,24 @@ else:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
             <span class="feat-icon">✂️</span>
             <div class="feat-title">Auto Page Detection</div>
-            <div class="feat-desc">Smart cropping — sirf document part, extra background hata diya jaata hai</div>
+            <div class="feat-desc">Smart cropping — extra background aur blank space auto remove</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("")
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
-            <span class="feat-icon">🔄</span>
-            <div class="feat-title">Auto-Rotate</div>
-            <div class="feat-desc">Tilted pages automatically detect karke seedhe kiye jaate hain</div>
+            <span class="feat-icon">🌗</span>
+            <div class="feat-title">Theme Toggle</div>
+            <div class="feat-desc">Dark aur Light mode — apni pasand ka theme chuno</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
             <span class="feat-icon">🌐</span>
             <div class="feat-title">Hindi + English OCR</div>
@@ -649,7 +531,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
         st.markdown("")
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
             <span class="feat-icon">🎨</span>
             <div class="feat-title">Image Enhancement</div>
@@ -658,15 +540,15 @@ else:
         """, unsafe_allow_html=True)
 
     with col3:
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
             <span class="feat-icon">📑</span>
             <div class="feat-title">Multi-Page PDF</div>
-            <div class="feat-desc">Ek saath kai images upload karo, ek PDF me merge ho jayengi</div>
+            <div class="feat-desc">Ek saath kai images — ek PDF me merge ho jayengi</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("")
-        st.markdown("""
+        st.markdown(f"""
         <div class="feat-card">
             <span class="feat-icon">📊</span>
             <div class="feat-title">Table Detection</div>
@@ -676,20 +558,20 @@ else:
 
 # ---------- FOOTER ----------
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center; padding: 2rem 0; color: #64748b; font-size: 0.9rem;">
+st.markdown(f"""
+<div style="text-align: center; padding: 2rem 0; color: {T['text_muted']}; font-size: 0.9rem;">
     <div style="font-size: 1.3rem; font-weight: 800; 
-                background: linear-gradient(135deg, #a78bfa 0%, #f093fb 100%);
+                background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 background-clip: text;
                 margin-bottom: 0.5rem;">
         📄 DocScan Pro
     </div>
-    <div style="color: #94a3b8;">
+    <div style="color: {T['text_muted']};">
         Powered by Streamlit · Tesseract OCR · OpenCV
     </div>
-    <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.7; color: #64748b;">
+    <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.7; color: {T['text_muted']};">
         Made with ❤️ for Hindi + English documents
     </div>
 </div>
