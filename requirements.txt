@@ -1,8 +1,7 @@
 streamlit
-paddlepaddle==2.6.1
-paddleocr==2.7.0.3
-numpy
 opencv-python-headless
+numpy
+pytesseract
 Pillow
 reportlab
 imutils
