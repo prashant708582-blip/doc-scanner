@@ -1,3 +1,4 @@
+import pytesseract
 import paddleocr
 from paddleocr import PaddleOCR
 from PIL import Image
@@ -9,6 +10,11 @@ import numpy as np
 _ocr_en = None
 _ocr_hi = None
 
+def image_to_text(image_path, lang="hin+eng", psm=3, handwriting=False):
+    img = Image.open(image_path)
+
+    if handwriting:
+        config = r'--oem 3 --psm 6 -c preserve_interword_spaces=1'
 def get_ocr(lang="en"):
     """PaddleOCR instance create karta hai (lazy loading)."""
     global _ocr_en, _ocr_hi
@@ -29,10 +35,13 @@ def get_ocr(lang="en"):
                 enable_mkldnn=False
             )
         return _ocr_hi
-    else:
+else:
+        config = f'--oem 3 --psm {psm}'
         # Fallback: en
         return get_ocr("en")
 
+    text = pytesseract.image_to_string(img, lang=lang, config=config)
+    return text
 
 def image_to_text(image_path, lang="hin+eng", psm=3, handwriting=False):
     """
@@ -76,7 +85,24 @@ def image_to_text(image_path, lang="hin+eng", psm=3, handwriting=False):
     
     return "\n".join(texts)
 
+def extract_with_confidence(image_path, lang="hin+eng"):
+    img = Image.open(image_path)
+    data = pytesseract.image_to_data(
+        img, lang=lang,
+        output_type=pytesseract.Output.DICT,
+        config='--oem 3 --psm 3'
+    )
 
+    results = []
+    for i, txt in enumerate(data['text']):
+        if txt.strip():
+            results.append({
+                'text': txt,
+                'conf': int(data['conf'][i]),
+                'bbox': (data['left'][i], data['top'][i],
+                         data['width'][i], data['height'][i])
+            })
+    return results
 def extract_with_confidence(image_path, lang="hin+eng"):
     """OCR with confidence scores (simplified)."""
     return []
@@ -84,41 +110,44 @@ def extract_with_confidence(image_path, lang="hin+eng"):
 
 def detect_tables(image_path):
     """Simple table detection — OpenCV based (same as before)."""
-    img = cv2.imread(image_path)
-    if img is None:
-        return []
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+img = cv2.imread(image_path)
+if img is None:
+return []
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
     
-    thresh = cv2.adaptiveThreshold(
-        ~gray, 255,
-        cv2.ADAPTIVE_THRESH_MEAN_C,
-        cv2.THRESH_BINARY, 15, -2
-    )
+thresh = cv2.adaptiveThreshold(
+~gray, 255,
+cv2.ADAPTIVE_THRESH_MEAN_C,
+cv2.THRESH_BINARY, 15, -2
+)
+
     
-    horizontal = thresh.copy()
-    cols = horizontal.shape[1]
-    h_size = max(cols // 30, 10)
-    h_struct = cv2.getStructuringElement(cv2.MORPH_RECT, (h_size, 1))
-    horizontal = cv2.erode(horizontal, h_struct)
-    horizontal = cv2.dilate(horizontal, h_struct)
+horizontal = thresh.copy()
+cols = horizontal.shape[1]
+h_size = max(cols // 30, 10)
+h_struct = cv2.getStructuringElement(cv2.MORPH_RECT, (h_size, 1))
+horizontal = cv2.erode(horizontal, h_struct)
+horizontal = cv2.dilate(horizontal, h_struct)
+
     
-    vertical = thresh.copy()
-    rows = vertical.shape[0]
-    v_size = max(rows // 30, 10)
-    v_struct = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_size))
-    vertical = cv2.erode(vertical, v_struct)
-    vertical = cv2.dilate(vertical, v_struct)
+vertical = thresh.copy()
+rows = vertical.shape[0]
+v_size = max(rows // 30, 10)
+v_struct = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_size))
+vertical = cv2.erode(vertical, v_struct)
+vertical = cv2.dilate(vertical, v_struct)
+
     
-    table_mask = cv2.add(horizontal, vertical)
-    table_mask = cv2.dilate(table_mask,
-                             cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+table_mask = cv2.add(horizontal, vertical)
+table_mask = cv2.dilate(table_mask,
+cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+
     
-    cnts, _ = cv2.findContours(table_mask, cv2.RETR_EXTERNAL,
-                                cv2.CHAIN_APPROX_SIMPLE)
+cnts, _ = cv2.findContours(table_mask, cv2.RETR_EXTERNAL,
+cv2.CHAIN_APPROX_SIMPLE)
+
     
-    tables = []
-    for c in cnts:
-        x, y, w, h = cv2.boundingRect(c)
-        if w > 100 and h > 50:
-            tables.append((x, y, w, h))
-    return tables
+tables = []
+for c in cnts:
+x, y, w, h = cv2.boundingRect(c)
