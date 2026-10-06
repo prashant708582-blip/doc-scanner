@@ -35,39 +35,61 @@ def _wrap_line(line, max_chars):
     return chunks
 
 
-def render_text_to_pdf(text, pdf_path, title="Scanned Document"):
+def _draw_watermark(c, width, height, text):
+    """Page pe watermark draw karta hai (diagonal)."""
+    if not text:
+        return
+    c.saveState()
+    c.setFont('Helvetica-Bold', 60)
+    c.setFillColor(HexColor("#e2e8f0"), alpha=0.3)
+    c.translate(width / 2, height / 2)
+    c.rotate(45)
+    c.drawCentredString(0, 0, text)
+    c.restoreState()
+
+
+def render_text_to_pdf(text, pdf_path, title="Scanned Document",
+                        watermark="", header_text="", footer_text=""):
     """
     OCR text ko A4 white page pe proper format me likhta hai.
-    - Auto page break
-    - Empty lines handled
-    - Long lines wrapped
-    - Page numbers
+    Supports: title, watermark, header, footer.
     """
     font = register_fonts()
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Margins (in points: 1 inch = 72 pt)
     margin_left = 25 * mm
     margin_right = 25 * mm
     margin_top = 25 * mm
     margin_bottom = 25 * mm
 
-    # Font sizes
     body_size = 11
     line_height = 16
 
-    # Text area width in characters (approx)
     usable_width = width - margin_left - margin_right
-    # Estimate: avg char width = body_size * 0.5 for English, but Hindi is wider
     max_chars = int(usable_width / (body_size * 0.55))
 
-    # Footer
     page_number = 1
 
-    def draw_footer(page_num):
+    def draw_page_decorations(page_num):
+        # Watermark
+        if watermark:
+            _draw_watermark(c, width, height, watermark)
+
+        # Header
+        if header_text:
+            c.setFont(font, 9)
+            c.setFillColor(HexColor("#94a3b8"))
+            c.drawString(margin_left, height - 12 * mm, header_text)
+            c.setStrokeColor(HexColor("#e2e8f0"))
+            c.setLineWidth(0.5)
+            c.line(margin_left, height - 15 * mm, width - margin_right, height - 15 * mm)
+
+        # Footer
         c.setFont(font, 8)
         c.setFillColor(HexColor("#94a3b8"))
+        if footer_text:
+            c.drawString(margin_left, 12 * mm, footer_text)
         c.drawCentredString(width / 2, 12 * mm, f"— Page {page_num} —")
         c.setFillColor(HexColor("#000000"))
 
@@ -76,7 +98,10 @@ def render_text_to_pdf(text, pdf_path, title="Scanned Document"):
     c.setFillColor(HexColor("#000000"))
     y = height - margin_top
 
-    # Title (optional)
+    # Draw decorations for first page
+    draw_page_decorations(page_number)
+
+    # Title
     if title:
         c.setFont(font, 14)
         c.setFillColor(HexColor("#1e293b"))
@@ -92,24 +117,22 @@ def render_text_to_pdf(text, pdf_path, title="Scanned Document"):
     for raw_line in text.split("\n"):
         line = raw_line.rstrip()
 
-        # Empty line — chhota gap
         if not line:
             y -= line_height * 0.6
             if y < margin_bottom + 20:
-                draw_footer(page_number)
                 c.showPage()
                 page_number += 1
+                draw_page_decorations(page_number)
                 c.setFont(font, body_size)
                 c.setFillColor(HexColor("#000000"))
                 y = height - margin_top
             continue
 
-        # Long lines wrap
         for chunk in _wrap_line(line, max_chars):
             if y < margin_bottom + 20:
-                draw_footer(page_number)
                 c.showPage()
                 page_number += 1
+                draw_page_decorations(page_number)
                 c.setFont(font, body_size)
                 c.setFillColor(HexColor("#000000"))
                 y = height - margin_top
@@ -117,24 +140,29 @@ def render_text_to_pdf(text, pdf_path, title="Scanned Document"):
             c.drawString(margin_left, y, chunk)
             y -= line_height
 
-    # Last page footer
-    draw_footer(page_number)
     c.save()
     return pdf_path
 
 
-# Backward compatibility
-def text_to_pdf(text, pdf_path):
-    return render_text_to_pdf(text, pdf_path, title="Scanned Document")
+def text_to_pdf(text, pdf_path, title="Scanned Document",
+                 watermark="", header_text="", footer_text=""):
+    return render_text_to_pdf(
+        text, pdf_path, title=title,
+        watermark=watermark, header_text=header_text, footer_text=footer_text
+    )
 
 
-def multi_page_pdf(texts, pdf_path):
+def multi_page_pdf(texts, pdf_path, title="Multi-Page Document",
+                    watermark="", header_text="", footer_text=""):
     """Multiple pages ka text — each text = one section."""
     combined = ""
     for i, t in enumerate(texts):
         combined += f"\n--- Page {i+1} ---\n"
         combined += t + "\n\n"
-    return render_text_to_pdf(combined, pdf_path, title="Multi-Page Document")
+    return render_text_to_pdf(
+        combined, pdf_path, title=title,
+        watermark=watermark, header_text=header_text, footer_text=footer_text
+    )
 
 
 def images_to_pdf(image_paths, pdf_path):
@@ -150,3 +178,22 @@ def images_to_pdf(image_paths, pdf_path):
     if images:
         images[0].save(pdf_path, save_all=True, append_images=images[1:])
     return pdf_path
+
+
+def add_password_to_pdf(input_pdf, output_pdf, password):
+    """PDF pe password lagao."""
+    try:
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(input_pdf)
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        writer.encrypt(password)
+        with open(output_pdf, "wb") as f:
+            writer.write(f)
+        return output_pdf
+    except Exception as e:
+        print(f"Password error: {e}")
+        return input_pdf
