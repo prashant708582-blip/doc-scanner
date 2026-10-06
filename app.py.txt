@@ -1,0 +1,225 @@
+import streamlit as st
+import os
+import cv2
+import numpy as np
+
+from scanner import (
+    crop_document, enhance_for_ocr, auto_rotate,
+    image_to_text, detect_tables,
+    text_to_pdf, multi_page_pdf, images_to_pdf
+)
+
+st.set_page_config(
+    page_title="Auto Doc Scanner — Hindi + English",
+    page_icon="??",
+    layout="wide"
+)
+
+WORK_DIR = "work"
+os.makedirs(WORK_DIR, exist_ok=True)
+
+with st.sidebar:
+    st.header("?? Settings")
+
+    lang_choice = st.selectbox(
+        "OCR Language",
+        ["hin+eng (Hindi + English)", "eng (English)", "hin (Hindi)"]
+    )
+    lang_code = {
+        "hin+eng (Hindi + English)": "hin+eng",
+        "eng (English)": "eng",
+        "hin (Hindi)": "hin"
+    }[lang_choice]
+
+    psm_choice = st.selectbox(
+        "OCR Mode",
+        [
+            (3, "Auto (mixed)"),
+            (6, "Single block"),
+            (4, "Multi-column"),
+            (11, "Sparse text"),
+            (12, "Sparse + OSD")
+        ],
+        format_func=lambda x: x[1]
+    )
+    psm_val = psm_choice[0]
+
+    enhance_mode = st.selectbox(
+        "Image Enhancement",
+        ["auto", "bw", "grayscale", "color"],
+        index=0
+    )
+
+    handwriting = st.checkbox("?? Handwriting mode (best-effort)")
+    auto_rot = st.checkbox("?? Auto-rotate tilted pages", value=True)
+
+    st.divider()
+    st.subheader("?? Output Type")
+    output_type = st.radio(
+        "Choose",
+        ["Both", "Text PDF (searchable)", "Image PDF (original scan)"]
+    )
+
+    st.divider()
+    st.caption("?? 300 DPI scan, straight angle, good lighting = best OCR")
+
+st.title("?? Auto Document Scanner")
+st.caption("Upload karein ? auto crop ? OCR (Hindi + English) ? PDF download")
+
+uploaded_files = st.file_uploader(
+    "?? Document(s) upload karein (multiple allowed)",
+    type=["jpg", "jpeg", "png", "bmp", "tiff"],
+    accept_multiple_files=True
+)
+
+if uploaded_files:
+    st.success(f"? {len(uploaded_files)} file(s) uploaded")
+
+    all_texts = []
+    all_cropped_paths = []
+    all_enhanced_paths = []
+
+    progress = st.progress(0)
+    status = st.empty()
+
+    for idx, uploaded in enumerate(uploaded_files):
+        status.info(f"?? Processing page {idx+1}/{len(uploaded_files)}: {uploaded.name}")
+        progress.progress(idx / len(uploaded_files))
+
+        orig_path = f"{WORK_DIR}/orig_{idx}.jpg"
+        with open(orig_path, "wb") as f:
+            f.write(uploaded.getbuffer())
+
+        cropped_path = f"{WORK_DIR}/cropped_{idx}.jpg"
+        try:
+            crop_document(orig_path, cropped_path)
+        except Exception as e:
+            st.warning(f"Page {idx+1}: Crop fail ({e}), original use kar rahe hain")
+            cropped_path = orig_path
+
+        if auto_rot:
+            cropped_img = cv2.imread(cropped_path)
+            if cropped_img is not None:
+                rotated = auto_rotate(cropped_img)
+                rotated_path = f"{WORK_DIR}/rotated_{idx}.jpg"
+                cv2.imwrite(rotated_path, rotated)
+            else:
+                rotated_path = cropped_path
+        else:
+            rotated_path = cropped_path
+
+        enhanced = enhance_for_ocr(rotated_path, mode=enhance_mode)
+        enhanced_path = f"{WORK_DIR}/enhanced_{idx}.jpg"
+        cv2.imwrite(enhanced_path, enhanced)
+
+        try:
+            text = image_to_text(
+                enhanced_path,
+                lang=lang_code,
+                psm=psm_val,
+                handwriting=handwriting
+            )
+        except Exception as e:
+            st.error(f"Page {idx+1}: OCR fail — {e}")
+            text = ""
+
+        all_texts.append(text)
+        all_cropped_paths.append(cropped_path)
+        all_enhanced_paths.append(enhanced_path)
+
+    progress.progress(1.0)
+    status.success(f"? Saare {len(uploaded_files)} pages process ho gaye!")
+
+    st.divider()
+    st.header("?? Results")
+
+    for idx, uploaded in enumerate(uploaded_files):
+        with st.expander(f"?? Page {idx+1}: {uploaded.name}", expanded=(idx == 0)):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**?? Original**")
+                st.image(uploaded, use_column_width=True)
+
+            with col2:
+                st.markdown("**?? Auto-Cropped**")
+                st.image(all_cropped_paths[idx], use_column_width=True)
+
+            with col3:
+                st.markdown("**? Enhanced (OCR-ready)**")
+                st.image(all_enhanced_paths[idx], use_column_width=True)
+
+            tables = detect_tables(all_enhanced_paths[idx])
+            if tables:
+                st.info(f"?? {len(tables)} table(s) detect hui is page me")
+
+            st.markdown("**?? Extracted Text (editable)**")
+            edited_text = st.text_area(
+                f"text_{idx}",
+                all_texts[idx],
+                height=200,
+                key=f"text_{idx}",
+                label_visibility="collapsed"
+            )
+            all_texts[idx] = edited_text
+
+    st.divider()
+    st.header("?? Downloads")
+
+    col_d1, col_d2, col_d3 = st.columns(3)
+
+    if output_type in ["Text PDF (searchable)", "Both"]:
+        text_pdf_path = f"{WORK_DIR}/text_output.pdf"
+        if len(all_texts) == 1:
+            text_to_pdf(all_texts[0], text_pdf_path)
+        else:
+            multi_page_pdf(all_texts, text_pdf_path)
+
+        with col_d1:
+            with open(text_pdf_path, "rb") as f:
+                st.download_button(
+                    "?? Text PDF (searchable)",
+                    f,
+                    file_name="scanned_text.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+    if output_type in ["Image PDF (original scan)", "Both"]:
+        img_pdf_path = f"{WORK_DIR}/image_output.pdf"
+        images_to_pdf(all_cropped_paths, img_pdf_path)
+
+        with col_d2:
+            with open(img_pdf_path, "rb") as f:
+                st.download_button(
+                    "??? Image PDF (high quality)",
+                    f,
+                    file_name="scanned_images.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+    if len(all_enhanced_paths) == 1:
+        with col_d3:
+            with open(all_enhanced_paths[0], "rb") as f:
+                st.download_button(
+                    "? Enhanced Image",
+                    f,
+                    file_name="enhanced.jpg",
+                    mime="image/jpeg",
+                    use_container_width=True
+                )
+
+else:
+    st.info("?? Koi document upload karein (JPEG / PNG)")
+    st.markdown("""
+    ### ?? Features
+    - ? Auto page detection
+    - ? Multi-page support
+    - ? Hindi + English OCR
+    - ? Auto-rotate
+    - ? Image enhancement
+    - ? Table detection
+    - ? Handwriting mode
+    - ? Searchable PDF + Image PDF
+    """)
