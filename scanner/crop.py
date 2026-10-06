@@ -42,7 +42,81 @@ def detect_page_contour(image):
     return candidates[0][1]
 
 
+def trim_extra_space(image, threshold=15, padding=20):
+    """
+    Image ke around jo extra white/black space hai use hata deta hai.
+    
+    Args:
+        image: OpenCV image (BGR or grayscale)
+        threshold: Kitna difference blank maana jaye (0-255)
+        padding: Content ke around kitna margin chhodna hai
+    
+    Returns:
+        Trimmed image
+    """
+    if image is None or image.size == 0:
+        return image
+    
+    # Grayscale me convert karo (agar color hai to)
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+    
+    # Blur karo — noise hatao
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # Detect karo kaunse pixels "content" hain aur kaunse "background"
+    # Background = jo bhi sabse common value hai (white ya black)
+    # Histogram se pata karo
+    hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
+    hist = hist.flatten()
+    
+    # Sabse common intensity = background
+    bg_intensity = int(np.argmax(hist))
+    
+    # Content pixels = jo background se alag hain
+    diff = np.abs(blurred.astype(int) - bg_intensity)
+    
+    # Binary mask — content = 255, background = 0
+    content_mask = (diff > threshold).astype(np.uint8) * 255
+    
+    # Morphological operations — chhote noise dots hatao
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    content_mask = cv2.morphologyEx(content_mask, cv2.MORPH_CLOSE, kernel)
+    content_mask = cv2.morphologyEx(content_mask, cv2.MORPH_OPEN, kernel)
+    
+    # Content ke coordinates dhoondo (bounding box)
+    coords = cv2.findNonZero(content_mask)
+    
+    if coords is None:
+        # Kuch bhi content nahi mila — original return karo
+        return image
+    
+    x, y, w, h = cv2.boundingRect(coords)
+    
+    # Padding add karo (content ke around thoda margin)
+    img_h, img_w = gray.shape[:2]
+    x1 = max(0, x - padding)
+    y1 = max(0, y - padding)
+    x2 = min(img_w, x + w + padding)
+    y2 = min(img_h, y + h + padding)
+    
+    # Crop karo
+    trimmed = image[y1:y2, x1:x2]
+    
+    # Agar crop bahut chhota ho gaya (95% se zyada hat gaya), to original use karo
+    area_ratio = (trimmed.shape[0] * trimmed.shape[1]) / (img_h * img_w)
+    if area_ratio < 0.05:
+        return image
+    
+    return trimmed
+
+
 def crop_document(image_path, output_path):
+    """
+    Document page auto-crop + extra blank space trim.
+    """
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Image load nahi hui: {image_path}")
@@ -53,8 +127,10 @@ def crop_document(image_path, output_path):
     contour = detect_page_contour(img)
 
     if contour is None:
-        cv2.imwrite(output_path, orig)
-        return output_path, orig
+        # Page detect nahi hua — sirf blank space trim karo
+        trimmed = trim_extra_space(orig, threshold=15, padding=20)
+        cv2.imwrite(output_path, trimmed)
+        return output_path, trimmed
 
     ratio = img.shape[0] / 800.0
     pts = contour.reshape(4, 2) * ratio
@@ -65,8 +141,10 @@ def crop_document(image_path, output_path):
     coverage = contour_area / (h * w)
 
     if coverage < 0.35:
-        cv2.imwrite(output_path, orig)
-        return output_path, orig
+        # Coverage kam hai — sirf blank space trim karo
+        trimmed = trim_extra_space(orig, threshold=15, padding=20)
+        cv2.imwrite(output_path, trimmed)
+        return output_path, trimmed
 
     widthA = np.linalg.norm(br - bl)
     widthB = np.linalg.norm(tr - tl)
@@ -78,8 +156,9 @@ def crop_document(image_path, output_path):
 
     aspect = maxHeight / maxWidth
     if not (0.6 < aspect < 1.7):
-        cv2.imwrite(output_path, orig)
-        return output_path, orig
+        trimmed = trim_extra_space(orig, threshold=15, padding=20)
+        cv2.imwrite(output_path, trimmed)
+        return output_path, trimmed
 
     dst = np.array([
         [0, 0],
@@ -91,6 +170,9 @@ def crop_document(image_path, output_path):
     M = cv2.getPerspectiveTransform(rect, dst)
     warped = cv2.warpPerspective(orig, M, (maxWidth, maxHeight),
                                   flags=cv2.INTER_CUBIC)
+
+    # ===== NAYA STEP: Extra blank space trim karo =====
+    warped = trim_extra_space(warped, threshold=15, padding=20)
 
     cv2.imwrite(output_path, warped)
     return output_path, warped
