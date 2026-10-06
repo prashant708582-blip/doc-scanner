@@ -1,7 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import cv2
 import numpy as np
+from io import BytesIO
+from docx import Document
+from docx.shared import Pt, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from scanner import (
     crop_document, enhance_for_ocr, auto_rotate,
@@ -23,7 +28,6 @@ os.makedirs(WORK_DIR, exist_ok=True)
 if "theme" not in st.session_state:
     st.session_state.theme = "dark"
 
-# ---------- THEME COLORS ----------
 THEMES = {
     "dark": {
         "bg": "radial-gradient(ellipse at top, #1a1a2e 0%, #0f0f1e 50%, #000000 100%)",
@@ -74,7 +78,6 @@ st.markdown(f"""
     h1, h2, h3, h4, h5, h6, p, span, div, label {{
         color: {T['text']} !important;
     }}
-    
     .hero {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
         padding: 2.5rem 2rem;
@@ -85,38 +88,24 @@ st.markdown(f"""
         border: 1px solid rgba(255,255,255,0.15);
     }}
     .hero h1 {{
-        font-size: 2.8rem;
-        font-weight: 800;
-        margin: 0;
-        color: #ffffff !important;
-        letter-spacing: -1px;
+        font-size: 2.8rem; font-weight: 800; margin: 0;
+        color: #ffffff !important; letter-spacing: -1px;
         text-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }}
-    .hero p {{
-        font-size: 1.1rem;
-        margin-top: 0.6rem;
-        color: rgba(255,255,255,0.95) !important;
-    }}
+    .hero p {{ font-size: 1.1rem; margin-top: 0.6rem; color: rgba(255,255,255,0.95) !important; }}
     .hero-badge {{
-        display: inline-block;
-        background: rgba(0,0,0,0.25);
-        padding: 6px 16px;
-        border-radius: 25px;
-        font-size: 0.85rem;
-        margin: 4px;
-        color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.3);
-        font-weight: 500;
+        display: inline-block; background: rgba(0,0,0,0.25);
+        padding: 6px 16px; border-radius: 25px; font-size: 0.85rem;
+        margin: 4px; color: #ffffff !important;
+        border: 1px solid rgba(255,255,255,0.3); font-weight: 500;
     }}
-    
     section[data-testid="stSidebar"] {{
         background: {T['sidebar_bg']};
         border-right: 1px solid {T['card_border']};
     }}
     section[data-testid="stSidebar"] h2 {{
         color: {T['accent']} !important;
-        font-size: 1.1rem;
-        padding-bottom: 0.5rem;
+        font-size: 1.1rem; padding-bottom: 0.5rem;
         border-bottom: 2px solid {T['card_border']};
     }}
     section[data-testid="stSidebar"] select,
@@ -126,123 +115,168 @@ st.markdown(f"""
         border: 1px solid {T['input_border']} !important;
         border-radius: 10px !important;
     }}
-    
     [data-testid="stFileUploader"] {{
         background: {T['upload_bg']};
         border: 2px dashed {T['upload_border']};
-        border-radius: 20px;
-        padding: 2rem;
-        transition: all 0.3s ease;
+        border-radius: 20px; padding: 2rem; transition: all 0.3s ease;
     }}
     [data-testid="stFileUploader"]:hover {{
         border-color: {T['accent']};
         box-shadow: 0 0 40px {T['shadow']};
     }}
-    
     .stButton > button, .stDownloadButton > button {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white !important;
-        border: none;
-        border-radius: 12px;
-        padding: 0.7rem 1.8rem;
-        font-weight: 700;
-        box-shadow: 0 8px 24px {T['shadow']};
-        transition: all 0.3s ease;
+        color: white !important; border: none; border-radius: 12px;
+        padding: 0.7rem 1.8rem; font-weight: 700;
+        box-shadow: 0 8px 24px {T['shadow']}; transition: all 0.3s ease;
     }}
     .stButton > button:hover, .stDownloadButton > button:hover {{
         transform: translateY(-3px);
         box-shadow: 0 12px 32px {T['shadow']};
         color: white !important;
     }}
-    
     .stat-card {{
-        background: {T['card_bg']};
-        padding: 1.5rem 1rem;
-        border-radius: 18px;
-        text-align: center;
-        border: 1px solid {T['card_border']};
-        transition: all 0.3s ease;
+        background: {T['card_bg']}; padding: 1.5rem 1rem;
+        border-radius: 18px; text-align: center;
+        border: 1px solid {T['card_border']}; transition: all 0.3s ease;
     }}
     .stat-card:hover {{
-        transform: translateY(-5px);
-        border-color: {T['accent']};
+        transform: translateY(-5px); border-color: {T['accent']};
         box-shadow: 0 10px 30px {T['shadow']};
     }}
     .stat-number {{
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin: 0;
+        font-size: 2.2rem; font-weight: 800; margin: 0;
         background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         background-clip: text;
     }}
     .stat-label {{
-        font-size: 0.85rem;
-        color: {T['text_muted']} !important;
-        margin: 0.3rem 0 0 0;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-size: 0.85rem; color: {T['text_muted']} !important;
+        margin: 0.3rem 0 0 0; text-transform: uppercase; letter-spacing: 1px;
     }}
-    
     .feat-card {{
-        background: {T['card_bg']};
-        padding: 1.8rem 1.5rem;
-        border-radius: 18px;
-        border: 1px solid {T['card_border']};
-        height: 100%;
-        transition: all 0.4s ease;
+        background: {T['card_bg']}; padding: 1.8rem 1.5rem;
+        border-radius: 18px; border: 1px solid {T['card_border']};
+        height: 100%; transition: all 0.4s ease;
     }}
     .feat-card:hover {{
-        transform: translateY(-8px);
-        border-color: {T['accent']};
+        transform: translateY(-8px); border-color: {T['accent']};
         box-shadow: 0 15px 40px {T['shadow']};
     }}
     .feat-icon {{ font-size: 2.5rem; margin-bottom: 0.8rem; display: block; }}
     .feat-title {{ font-size: 1.1rem; font-weight: 700; color: {T['accent']} !important; margin-bottom: 0.5rem; }}
     .feat-desc {{ font-size: 0.9rem; color: {T['text_muted']} !important; line-height: 1.6; }}
-    
     .stTabs [data-baseweb="tab-list"] {{
-        gap: 8px;
-        background: {T['card_bg']};
-        padding: 8px;
-        border-radius: 14px;
-        border: 1px solid {T['card_border']};
+        gap: 8px; background: {T['card_bg']}; padding: 8px;
+        border-radius: 14px; border: 1px solid {T['card_border']};
     }}
     .stTabs [data-baseweb="tab"] {{
-        border-radius: 10px;
-        padding: 10px 24px;
-        font-weight: 600;
-        color: {T['text_muted']};
+        border-radius: 10px; padding: 10px 24px;
+        font-weight: 600; color: {T['text_muted']};
     }}
     .stTabs [aria-selected="true"] {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         color: white !important;
     }}
-    
     .stTextArea textarea {{
         background: {T['input_bg']} !important;
         color: {T['text']} !important;
         border: 1px solid {T['input_border']} !important;
         border-radius: 12px !important;
     }}
-    
     ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
     ::-webkit-scrollbar-track {{ background: {T['scroll_track']}; }}
     ::-webkit-scrollbar-thumb {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 10px;
     }}
-    
     hr {{
-        border: none;
-        height: 1px;
-        background: {T['hr']};
-        margin: 2rem 0;
+        border: none; height: 1px;
+        background: {T['hr']}; margin: 2rem 0;
     }}
     img {{ border-radius: 12px; }}
 </style>
 """, unsafe_allow_html=True)
+
+# ---------- CONFETTI FUNCTION ----------
+def trigger_confetti():
+    """Confetti animation trigger karta hai."""
+    components.html("""
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
+    <script>
+        setTimeout(function() {
+            confetti({
+                particleCount: 150,
+                spread: 90,
+                origin: { y: 0.6 },
+                colors: ['#667eea', '#764ba2', '#f093fb', '#a78bfa', '#10b981']
+            });
+        }, 100);
+        setTimeout(function() {
+            confetti({
+                particleCount: 80,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: ['#667eea', '#f093fb', '#10b981']
+            });
+            confetti({
+                particleCount: 80,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: ['#764ba2', '#a78bfa', '#f59e0b']
+            });
+        }, 400);
+    </script>
+    """, height=0)
+
+# ---------- EXPORT HELPERS ----------
+def text_to_docx(text, docx_path):
+    """Text ko DOCX file me convert karta hai."""
+    doc = Document()
+    
+    # Set margins
+    for section in doc.sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+    
+    # Title
+    title = doc.add_heading('Scanned Document', level=1)
+    
+    # Body
+    for line in text.split("\n"):
+        line = line.rstrip()
+        if line:
+            p = doc.add_paragraph(line)
+            p.paragraph_format.space_after = Pt(6)
+        else:
+            doc.add_paragraph()
+    
+    doc.save(docx_path)
+    return docx_path
+
+
+def text_to_txt(text, txt_path):
+    """Text ko plain TXT file me save karta hai."""
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return txt_path
+
+
+def text_to_markdown(text, md_path, title="Scanned Document"):
+    """Text ko Markdown file me convert karta hai."""
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(f"# {title}\n\n")
+        for line in text.split("\n"):
+            if line.strip():
+                f.write(f"{line}\n\n")
+            else:
+                f.write("\n")
+    return md_path
+
 
 # ---------- HERO ----------
 st.markdown("""
@@ -252,22 +286,19 @@ st.markdown("""
     <div style="margin-top: 1rem;">
         <span class="hero-badge">✨ Auto-Crop</span>
         <span class="hero-badge">🔍 Smart OCR</span>
-        <span class="hero-badge">📑 PDF Export</span>
-        <span class="hero-badge">🌗 Theme Toggle</span>
+        <span class="hero-badge">📑 Multi-Format</span>
+        <span class="hero-badge">🎉 Confetti</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------- SIDEBAR ----------
 with st.sidebar:
-    # Theme Toggle
     st.markdown("## 🎨 Appearance")
     theme_choice = st.radio(
-        "Theme",
-        ["🌙 Dark", "☀️ Light"],
+        "Theme", ["🌙 Dark", "☀️ Light"],
         index=0 if st.session_state.theme == "dark" else 1,
-        horizontal=True,
-        label_visibility="collapsed"
+        horizontal=True, label_visibility="collapsed"
     )
     new_theme = "dark" if "Dark" in theme_choice else "light"
     if new_theme != st.session_state.theme:
@@ -290,39 +321,29 @@ with st.sidebar:
 
     psm_choice = st.selectbox(
         "🎯 OCR Mode",
-        [
-            (3, "Auto (mixed)"),
-            (6, "Single block"),
-            (4, "Multi-column"),
-            (11, "Sparse text"),
-            (12, "Sparse + OSD")
-        ],
+        [(3, "Auto (mixed)"), (6, "Single block"), (4, "Multi-column"),
+         (11, "Sparse text"), (12, "Sparse + OSD")],
         format_func=lambda x: x[1]
     )
     psm_val = psm_choice[0]
 
     enhance_mode = st.selectbox(
         "🎨 Enhancement",
-        ["auto", "bw", "grayscale", "color"],
-        index=0
+        ["auto", "bw", "grayscale", "color"], index=0
     )
 
     st.markdown("---")
     st.markdown("## 🔧 Advanced")
     handwriting = st.checkbox("✍️ Handwriting mode", value=False)
     auto_rot = st.checkbox("🔄 Auto-rotate pages", value=True)
+    confetti_on = st.checkbox("🎉 Confetti animation", value=True)
 
     st.markdown("---")
-    st.markdown("## 📑 Output Format")
-    output_type = st.radio(
-        "Choose",
-        ["Both", "Text PDF (searchable)", "Image PDF (scan)"],
-        label_visibility="collapsed"
-    )
-
-    st.markdown("---")
-    theme_emoji = "🌙" if st.session_state.theme == "dark" else "☀️"
-    st.caption(f"{theme_emoji} Current theme: **{st.session_state.theme.title()}**")
+    st.markdown("## 📑 Export Formats")
+    export_pdf = st.checkbox("📄 PDF", value=True)
+    export_docx = st.checkbox("📝 DOCX (Word)", value=True)
+    export_txt = st.checkbox("📃 TXT", value=False)
+    export_md = st.checkbox("📋 Markdown", value=False)
 
 # ---------- UPLOAD ----------
 st.markdown("### 📤 Upload Your Document")
@@ -356,7 +377,7 @@ if uploaded_files:
         try:
             crop_document(orig_path, cropped_path)
         except Exception as e:
-            st.warning(f"Page {idx+1}: Crop fail — original use kar rahe hain")
+            st.warning(f"Page {idx+1}: Crop fail")
             cropped_path = orig_path
 
         if auto_rot:
@@ -375,12 +396,7 @@ if uploaded_files:
         cv2.imwrite(enhanced_path, enhanced)
 
         try:
-            text = image_to_text(
-                enhanced_path,
-                lang=lang_code,
-                psm=psm_val,
-                handwriting=handwriting
-            )
+            text = image_to_text(enhanced_path, lang=lang_code, psm=psm_val, handwriting=handwriting)
         except Exception as e:
             st.error(f"Page {idx+1}: OCR fail — {e}")
             text = ""
@@ -391,6 +407,10 @@ if uploaded_files:
 
     progress.progress(1.0)
     status.success("✨ All pages processed successfully!")
+
+    # ---------- CONFETTI ----------
+    if confetti_on:
+        trigger_confetti()
 
     # ---------- STATS ----------
     st.markdown("### 📊 Summary")
@@ -416,32 +436,26 @@ if uploaded_files:
         for idx, uploaded in enumerate(uploaded_files):
             with st.expander(f"📄 Page {idx+1} — {uploaded.name}", expanded=(idx == 0)):
                 col1, col2, col3 = st.columns(3)
-
                 with col1:
                     st.markdown("**📷 Original**")
                     st.image(uploaded, use_column_width=True)
-
                 with col2:
                     st.markdown("**✂️ Auto-Cropped**")
                     st.image(all_cropped_paths[idx], use_column_width=True)
-
                 with col3:
                     st.markdown("**✨ Enhanced**")
                     st.image(all_enhanced_paths[idx], use_column_width=True)
 
                 tables = detect_tables(all_enhanced_paths[idx])
                 if tables:
-                    st.info(f"📊 {len(tables)} table(s) detected on this page")
+                    st.info(f"📊 {len(tables)} table(s) detected")
 
     with tab2:
         for idx, uploaded in enumerate(uploaded_files):
             st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
             edited_text = st.text_area(
-                f"text_{idx}",
-                all_texts[idx],
-                height=250,
-                key=f"text_{idx}",
-                label_visibility="collapsed"
+                f"text_{idx}", all_texts[idx], height=250,
+                key=f"text_{idx}", label_visibility="collapsed"
             )
             all_texts[idx] = edited_text
             st.markdown("---")
@@ -450,38 +464,79 @@ if uploaded_files:
         st.markdown("### 📥 Download Your Files")
         st.markdown("")
 
-        col_d1, col_d2 = st.columns(2)
+        combined_text = "\n\n---\n\n".join(all_texts)
 
-        if output_type in ["Text PDF (searchable)", "Both"]:
+        # Row 1: PDF buttons
+        col_pdf1, col_pdf2 = st.columns(2)
+
+        if export_pdf:
             text_pdf_path = f"{WORK_DIR}/text_output.pdf"
             if len(all_texts) == 1:
                 text_to_pdf(all_texts[0], text_pdf_path)
             else:
                 multi_page_pdf(all_texts, text_pdf_path)
 
-            with col_d1:
+            with col_pdf1:
                 with open(text_pdf_path, "rb") as f:
                     st.download_button(
                         "📄 Download Text PDF",
-                        f,
-                        file_name="scanned_text.pdf",
+                        f, file_name="scanned_text.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
 
-        if output_type in ["Image PDF (scan)", "Both"]:
             img_pdf_path = f"{WORK_DIR}/image_output.pdf"
             images_to_pdf(all_cropped_paths, img_pdf_path)
 
-            with col_d2:
+            with col_pdf2:
                 with open(img_pdf_path, "rb") as f:
                     st.download_button(
                         "🖼️ Download Image PDF",
-                        f,
-                        file_name="scanned_images.pdf",
+                        f, file_name="scanned_images.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
+
+        # Row 2: Other formats
+        if export_docx or export_txt or export_md:
+            st.markdown("")
+            cols = st.columns(3)
+
+            if export_docx:
+                docx_path = f"{WORK_DIR}/output.docx"
+                text_to_docx(combined_text, docx_path)
+                with cols[0]:
+                    with open(docx_path, "rb") as f:
+                        st.download_button(
+                            "📝 Download DOCX",
+                            f, file_name="scanned.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
+
+            if export_txt:
+                txt_path = f"{WORK_DIR}/output.txt"
+                text_to_txt(combined_text, txt_path)
+                with cols[1]:
+                    with open(txt_path, "rb") as f:
+                        st.download_button(
+                            "📃 Download TXT",
+                            f, file_name="scanned.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+
+            if export_md:
+                md_path = f"{WORK_DIR}/output.md"
+                text_to_markdown(combined_text, md_path)
+                with cols[2]:
+                    with open(md_path, "rb") as f:
+                        st.download_button(
+                            "📋 Download Markdown",
+                            f, file_name="scanned.md",
+                            mime="text/markdown",
+                            use_container_width=True
+                        )
 
 # ---------- EMPTY STATE ----------
 else:
@@ -506,55 +561,19 @@ else:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">✂️</span>
-            <div class="feat-title">Auto Page Detection</div>
-            <div class="feat-desc">Smart cropping — extra background aur blank space auto remove</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">✂️</span><div class="feat-title">Auto Page Detection</div><div class="feat-desc">Smart cropping — extra background auto remove</div></div>', unsafe_allow_html=True)
         st.markdown("")
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">🌗</span>
-            <div class="feat-title">Theme Toggle</div>
-            <div class="feat-desc">Dark aur Light mode — apni pasand ka theme chuno</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">🎉</span><div class="feat-title">Confetti Celebration</div><div class="feat-desc">PDF ready hone pe celebration animation</div></div>', unsafe_allow_html=True)
 
     with col2:
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">🌐</span>
-            <div class="feat-title">Hindi + English OCR</div>
-            <div class="feat-desc">Dono bhashayein ek saath — Hinglish documents bhi perfect</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌐</span><div class="feat-title">Hindi + English OCR</div><div class="feat-desc">Dono bhashayein ek saath — Hinglish bhi</div></div>', unsafe_allow_html=True)
         st.markdown("")
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">🎨</span>
-            <div class="feat-title">Image Enhancement</div>
-            <div class="feat-desc">Denoise, sharpen, contrast boost — best OCR quality</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">📥</span><div class="feat-title">Multi-Format Export</div><div class="feat-desc">PDF, DOCX, TXT, Markdown — chaaro formats</div></div>', unsafe_allow_html=True)
 
     with col3:
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">📑</span>
-            <div class="feat-title">Multi-Page PDF</div>
-            <div class="feat-desc">Ek saath kai images — ek PDF me merge ho jayengi</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌗</span><div class="feat-title">Theme Toggle</div><div class="feat-desc">Dark aur Light mode — apni pasand</div></div>', unsafe_allow_html=True)
         st.markdown("")
-        st.markdown(f"""
-        <div class="feat-card">
-            <span class="feat-icon">📊</span>
-            <div class="feat-title">Table Detection</div>
-            <div class="feat-desc">Documents me tables automatic detect karke highlight</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">📑</span><div class="feat-title">Multi-Page PDF</div><div class="feat-desc">Kai images ek saath — ek PDF me merge</div></div>', unsafe_allow_html=True)
 
 # ---------- FOOTER ----------
 st.markdown("---")
@@ -562,16 +581,14 @@ st.markdown(f"""
 <div style="text-align: center; padding: 2rem 0; color: {T['text_muted']}; font-size: 0.9rem;">
     <div style="font-size: 1.3rem; font-weight: 800; 
                 background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                margin-bottom: 0.5rem;">
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                background-clip: text; margin-bottom: 0.5rem;">
         📄 DocScan Pro
     </div>
     <div style="color: {T['text_muted']};">
         Powered by Streamlit · Tesseract OCR · OpenCV
     </div>
-    <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.7; color: {T['text_muted']};">
+    <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.7;">
         Made with ❤️ for Hindi + English documents
     </div>
 </div>
