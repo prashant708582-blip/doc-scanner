@@ -1,9 +1,8 @@
-streamlit==1.38.0
-opencv-python-headless==4.10.0.84
-numpy==1.26.4
-pytesseract==0.3.13
-Pillow==10.4.0
-reportlab==4.2.2
-imutils==0.5.4
-pymupdf==1.24.10
-scikit-image==0.24.0
+streamlit
+opencv-python-headless
+numpy
+pytesseract
+Pillow
+reportlab
+imutils
+pymupdf
