@@ -6,7 +6,9 @@ import numpy as np
 from io import BytesIO
 from docx import Document
 from docx.shared import Pt, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from gtts import gTTS
+import pytesseract
+from PIL import Image
 
 from scanner import (
     crop_document, enhance_for_ocr, auto_rotate,
@@ -70,50 +72,35 @@ T = THEMES[st.session_state.theme]
 # ---------- DYNAMIC CSS ----------
 st.markdown(f"""
 <style>
-    .stApp {{
-        background: {T['bg']};
-        background-attachment: fixed;
-    }}
+    .stApp {{ background: {T['bg']}; background-attachment: fixed; }}
     #MainMenu, footer, header {{visibility: hidden;}}
-    h1, h2, h3, h4, h5, h6, p, span, div, label {{
-        color: {T['text']} !important;
-    }}
+    h1, h2, h3, h4, h5, h6, p, span, div, label {{ color: {T['text']} !important; }}
     .hero {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-        padding: 2.5rem 2rem;
-        border-radius: 24px;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 60px {T['shadow']};
+        padding: 2.5rem 2rem; border-radius: 24px; text-align: center;
+        margin-bottom: 2rem; box-shadow: 0 20px 60px {T['shadow']};
         border: 1px solid rgba(255,255,255,0.15);
     }}
-    .hero h1 {{
-        font-size: 2.8rem; font-weight: 800; margin: 0;
+    .hero h1 {{ font-size: 2.8rem; font-weight: 800; margin: 0;
         color: #ffffff !important; letter-spacing: -1px;
-        text-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    }}
+        text-shadow: 0 4px 20px rgba(0,0,0,0.3); }}
     .hero p {{ font-size: 1.1rem; margin-top: 0.6rem; color: rgba(255,255,255,0.95) !important; }}
-    .hero-badge {{
-        display: inline-block; background: rgba(0,0,0,0.25);
+    .hero-badge {{ display: inline-block; background: rgba(0,0,0,0.25);
         padding: 6px 16px; border-radius: 25px; font-size: 0.85rem;
         margin: 4px; color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.3); font-weight: 500;
-    }}
+        border: 1px solid rgba(255,255,255,0.3); font-weight: 500; }}
     section[data-testid="stSidebar"] {{
         background: {T['sidebar_bg']};
         border-right: 1px solid {T['card_border']};
     }}
     section[data-testid="stSidebar"] h2 {{
-        color: {T['accent']} !important;
-        font-size: 1.1rem; padding-bottom: 0.5rem;
-        border-bottom: 2px solid {T['card_border']};
+        color: {T['accent']} !important; font-size: 1.1rem;
+        padding-bottom: 0.5rem; border-bottom: 2px solid {T['card_border']};
     }}
     section[data-testid="stSidebar"] select,
     section[data-testid="stSidebar"] input {{
-        background: {T['input_bg']} !important;
-        color: {T['text']} !important;
-        border: 1px solid {T['input_border']} !important;
-        border-radius: 10px !important;
+        background: {T['input_bg']} !important; color: {T['text']} !important;
+        border: 1px solid {T['input_border']} !important; border-radius: 10px !important;
     }}
     [data-testid="stFileUploader"] {{
         background: {T['upload_bg']};
@@ -121,8 +108,7 @@ st.markdown(f"""
         border-radius: 20px; padding: 2rem; transition: all 0.3s ease;
     }}
     [data-testid="stFileUploader"]:hover {{
-        border-color: {T['accent']};
-        box-shadow: 0 0 40px {T['shadow']};
+        border-color: {T['accent']}; box-shadow: 0 0 40px {T['shadow']};
     }}
     .stButton > button, .stDownloadButton > button {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -131,8 +117,7 @@ st.markdown(f"""
         box-shadow: 0 8px 24px {T['shadow']}; transition: all 0.3s ease;
     }}
     .stButton > button:hover, .stDownloadButton > button:hover {{
-        transform: translateY(-3px);
-        box-shadow: 0 12px 32px {T['shadow']};
+        transform: translateY(-3px); box-shadow: 0 12px 32px {T['shadow']};
         color: white !important;
     }}
     .stat-card {{
@@ -190,63 +175,144 @@ st.markdown(f"""
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 10px;
     }}
-    hr {{
-        border: none; height: 1px;
-        background: {T['hr']}; margin: 2rem 0;
-    }}
+    hr {{ border: none; height: 1px; background: {T['hr']}; margin: 2rem 0; }}
     img {{ border-radius: 12px; }}
+    
+    /* Confidence word boxes */
+    .word-box {{
+        display: inline-block;
+        padding: 3px 8px;
+        margin: 2px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-family: 'Courier New', monospace;
+        transition: all 0.2s ease;
+    }}
+    .word-high {{ background: rgba(16, 185, 129, 0.25); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.5); }}
+    .word-mid {{ background: rgba(245, 158, 11, 0.25); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.5); }}
+    .word-low {{ background: rgba(239, 68, 68, 0.3); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.6); }}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- CONFETTI FUNCTION ----------
+# ---------- CONFETTI ----------
 def trigger_confetti():
-    """Confetti animation trigger karta hai."""
     components.html("""
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.0/dist/confetti.browser.min.js"></script>
     <script>
         setTimeout(function() {
-            confetti({
-                particleCount: 150,
-                spread: 90,
-                origin: { y: 0.6 },
-                colors: ['#667eea', '#764ba2', '#f093fb', '#a78bfa', '#10b981']
-            });
+            confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 },
+                colors: ['#667eea', '#764ba2', '#f093fb', '#a78bfa', '#10b981'] });
         }, 100);
         setTimeout(function() {
-            confetti({
-                particleCount: 80,
-                angle: 60,
-                spread: 55,
-                origin: { x: 0 },
-                colors: ['#667eea', '#f093fb', '#10b981']
-            });
-            confetti({
-                particleCount: 80,
-                angle: 120,
-                spread: 55,
-                origin: { x: 1 },
-                colors: ['#764ba2', '#a78bfa', '#f59e0b']
-            });
+            confetti({ particleCount: 80, angle: 60, spread: 55, origin: { x: 0 } });
+            confetti({ particleCount: 80, angle: 120, spread: 55, origin: { x: 1 } });
         }, 400);
     </script>
     """, height=0)
 
-# ---------- EXPORT HELPERS ----------
+
+# ---------- CONFIDENCE ANALYSIS ----------
+def get_word_confidences(image_path, lang="hin+eng"):
+    """Har word ka confidence score nikalta hai."""
+    try:
+        img = Image.open(image_path)
+        data = pytesseract.image_to_data(
+            img, lang=lang,
+            output_type=pytesseract.Output.DICT,
+            config='--oem 3 --psm 3'
+        )
+
+        words = []
+        for i, txt in enumerate(data['text']):
+            if txt.strip():
+                try:
+                    conf = int(data['conf'][i])
+                except (ValueError, TypeError):
+                    conf = 0
+                words.append({
+                    'text': txt,
+                    'conf': conf,
+                    'line': data['line_num'][i],
+                    'block': data['block_num'][i]
+                })
+        return words
+    except Exception:
+        return []
+
+
+def render_confidence_html(words):
+    """Words ko colored boxes me render karta hai."""
+    if not words:
+        return "<p>No confidence data available</p>"
+
+    html = "<div style='line-height: 2.2; padding: 1rem; background: rgba(0,0,0,0.15); border-radius: 12px;'>"
+
+    current_line = -1
+    for w in words:
+        if w['line'] != current_line:
+            if current_line != -1:
+                html += "<br>"
+            current_line = w['line']
+
+        conf = w['conf']
+        if conf >= 80:
+            cls = "word-high"
+        elif conf >= 60:
+            cls = "word-mid"
+        else:
+            cls = "word-low"
+
+        # Escape HTML
+        safe_text = w['text'].replace("<", "&lt;").replace(">", "&gt;").replace("&", "&amp;")
+        html += f"<span class='word-box {cls}' title='Confidence: {conf}%'>{safe_text}</span> "
+
+    html += "</div>"
+    return html
+
+
+def calculate_accuracy(words):
+    """Overall accuracy percentage nikalta hai."""
+    if not words:
+        return 0, 0, 0, 0
+    confs = [w['conf'] for w in words]
+    avg = sum(confs) / len(confs)
+    high = sum(1 for c in confs if c >= 80)
+    mid = sum(1 for c in confs if 60 <= c < 80)
+    low = sum(1 for c in confs if c < 60)
+    return avg, high, mid, low
+
+
+# ---------- TEXT-TO-SPEECH ----------
+def generate_tts(text, lang="en"):
+    """Text-to-speech audio generate karta hai (gTTS)."""
+    try:
+        # Hindi detection
+        has_hindi = any('\u0900' <= c <= '\u097F' for c in text)
+        tts_lang = "hi" if (lang == "hi" or (lang == "hin+eng" and has_hindi)) else "en"
+
+        # Text ko limit karo (gTTS max ~200 chars per request safely)
+        clean_text = text.strip()[:5000]
+        if not clean_text:
+            return None
+
+        tts = gTTS(text=clean_text, lang=tts_lang, slow=False)
+        audio_bytes = BytesIO()
+        tts.write_to_fp(audio_bytes)
+        audio_bytes.seek(0)
+        return audio_bytes.read()
+    except Exception as e:
+        return None
+
+
+# ---------- EXPORTS ----------
 def text_to_docx(text, docx_path):
-    """Text ko DOCX file me convert karta hai."""
     doc = Document()
-    
-    # Set margins
     for section in doc.sections:
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
-    
-    # Title
-    title = doc.add_heading('Scanned Document', level=1)
-    
-    # Body
+    doc.add_heading('Scanned Document', level=1)
     for line in text.split("\n"):
         line = line.rstrip()
         if line:
@@ -254,20 +320,17 @@ def text_to_docx(text, docx_path):
             p.paragraph_format.space_after = Pt(6)
         else:
             doc.add_paragraph()
-    
     doc.save(docx_path)
     return docx_path
 
 
 def text_to_txt(text, txt_path):
-    """Text ko plain TXT file me save karta hai."""
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(text)
     return txt_path
 
 
 def text_to_markdown(text, md_path, title="Scanned Document"):
-    """Text ko Markdown file me convert karta hai."""
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(f"# {title}\n\n")
         for line in text.split("\n"):
@@ -284,9 +347,9 @@ st.markdown("""
     <h1>📄 DocScan Pro</h1>
     <p>AI-Powered Document Scanner · Hindi + English OCR</p>
     <div style="margin-top: 1rem;">
-        <span class="hero-badge">✨ Auto-Crop</span>
-        <span class="hero-badge">🔍 Smart OCR</span>
-        <span class="hero-badge">📑 Multi-Format</span>
+        <span class="hero-badge">📊 Confidence</span>
+        <span class="hero-badge">🔊 Text-to-Speech</span>
+        <span class="hero-badge">📥 Multi-Format</span>
         <span class="hero-badge">🎉 Confetti</span>
     </div>
 </div>
@@ -354,13 +417,14 @@ uploaded_files = st.file_uploader(
     label_visibility="collapsed"
 )
 
-# ---------- MAIN LOGIC ----------
+# ---------- MAIN ----------
 if uploaded_files:
     st.success(f"✅ {len(uploaded_files)} file(s) uploaded — processing started...")
 
     all_texts = []
     all_cropped_paths = []
     all_enhanced_paths = []
+    all_confidences = []
 
     progress = st.progress(0)
     status = st.empty()
@@ -376,8 +440,7 @@ if uploaded_files:
         cropped_path = f"{WORK_DIR}/cropped_{idx}.jpg"
         try:
             crop_document(orig_path, cropped_path)
-        except Exception as e:
-            st.warning(f"Page {idx+1}: Crop fail")
+        except Exception:
             cropped_path = orig_path
 
         if auto_rot:
@@ -401,14 +464,17 @@ if uploaded_files:
             st.error(f"Page {idx+1}: OCR fail — {e}")
             text = ""
 
+        # Confidence analysis
+        words = get_word_confidences(enhanced_path, lang=lang_code)
+
         all_texts.append(text)
         all_cropped_paths.append(cropped_path)
         all_enhanced_paths.append(enhanced_path)
+        all_confidences.append(words)
 
     progress.progress(1.0)
     status.success("✨ All pages processed successfully!")
 
-    # ---------- CONFETTI ----------
     if confetti_on:
         trigger_confetti()
 
@@ -418,6 +484,10 @@ if uploaded_files:
     total_chars = sum(len(t) for t in all_texts)
     total_words = sum(len(t.split()) for t in all_texts)
 
+    # Overall accuracy
+    all_words_flat = [w for page_words in all_confidences for w in page_words]
+    avg_conf, high_count, mid_count, low_count = calculate_accuracy(all_words_flat)
+
     with col_s1:
         st.markdown(f'<div class="stat-card"><p class="stat-number">{len(uploaded_files)}</p><p class="stat-label">Pages</p></div>', unsafe_allow_html=True)
     with col_s2:
@@ -425,13 +495,16 @@ if uploaded_files:
     with col_s3:
         st.markdown(f'<div class="stat-card"><p class="stat-number">{total_chars}</p><p class="stat-label">Characters</p></div>', unsafe_allow_html=True)
     with col_s4:
-        st.markdown(f'<div class="stat-card"><p class="stat-number">{len(all_texts)}</p><p class="stat-label">Completed</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="stat-card"><p class="stat-number">{avg_conf:.0f}%</p><p class="stat-label">Accuracy</p></div>', unsafe_allow_html=True)
 
     st.markdown("")
 
     # ---------- TABS ----------
-    tab1, tab2, tab3 = st.tabs(["📄 Visual Results", "📝 Extracted Text", "⬇️ Downloads"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📄 Visual", "📊 Confidence", "🔊 Listen", "📝 Edit Text", "⬇️ Downloads"
+    ])
 
+    # ---- VISUAL ----
     with tab1:
         for idx, uploaded in enumerate(uploaded_files):
             with st.expander(f"📄 Page {idx+1} — {uploaded.name}", expanded=(idx == 0)):
@@ -446,11 +519,56 @@ if uploaded_files:
                     st.markdown("**✨ Enhanced**")
                     st.image(all_enhanced_paths[idx], use_column_width=True)
 
-                tables = detect_tables(all_enhanced_paths[idx])
-                if tables:
-                    st.info(f"📊 {len(tables)} table(s) detected")
-
+    # ---- CONFIDENCE ----
     with tab2:
+        st.markdown("### 📊 OCR Confidence Analysis")
+        st.caption("🟢 High (80%+) · 🟡 Medium (60-79%) · 🔴 Low (<60%) — hover karke exact % dekho")
+        st.markdown("")
+
+        # Overall stats
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #10b981;">{high_count}</p><p class="stat-label">High Confidence</p></div>', unsafe_allow_html=True)
+        with col_b:
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #f59e0b;">{mid_count}</p><p class="stat-label">Medium Confidence</p></div>', unsafe_allow_html=True)
+        with col_c:
+            st.markdown(f'<div class="stat-card"><p class="stat-number" style="color: #ef4444;">{low_count}</p><p class="stat-label">Low Confidence</p></div>', unsafe_allow_html=True)
+
+        st.markdown("")
+
+        for idx, uploaded in enumerate(uploaded_files):
+            st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
+            html = render_confidence_html(all_confidences[idx])
+            st.markdown(html, unsafe_allow_html=True)
+            st.markdown("---")
+
+    # ---- TEXT-TO-SPEECH ----
+    with tab3:
+        st.markdown("### 🔊 Listen to Your Document")
+        st.caption("OCR text ko audio me suno — Hindi ya English auto-detect")
+
+        for idx, uploaded in enumerate(uploaded_files):
+            st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
+
+            col_t1, col_t2 = st.columns([1, 3])
+            with col_t1:
+                if st.button(f"🎧 Generate Audio", key=f"tts_btn_{idx}", use_container_width=True):
+                    with st.spinner("Audio ban raha hai..."):
+                        audio_bytes = generate_tts(all_texts[idx], lang=lang_code)
+                        if audio_bytes:
+                            st.session_state[f"audio_{idx}"] = audio_bytes
+                            st.success("✅ Audio ready!")
+                        else:
+                            st.error("Audio generate nahi hua")
+
+            with col_t2:
+                if f"audio_{idx}" in st.session_state:
+                    st.audio(st.session_state[f"audio_{idx}"], format="audio/mp3")
+
+            st.markdown("---")
+
+    # ---- EDIT TEXT ----
+    with tab4:
         for idx, uploaded in enumerate(uploaded_files):
             st.markdown(f"**📄 Page {idx+1} — {uploaded.name}**")
             edited_text = st.text_area(
@@ -460,13 +578,13 @@ if uploaded_files:
             all_texts[idx] = edited_text
             st.markdown("---")
 
-    with tab3:
+    # ---- DOWNLOADS ----
+    with tab5:
         st.markdown("### 📥 Download Your Files")
         st.markdown("")
 
         combined_text = "\n\n---\n\n".join(all_texts)
 
-        # Row 1: PDF buttons
         col_pdf1, col_pdf2 = st.columns(2)
 
         if export_pdf:
@@ -479,8 +597,8 @@ if uploaded_files:
             with col_pdf1:
                 with open(text_pdf_path, "rb") as f:
                     st.download_button(
-                        "📄 Download Text PDF",
-                        f, file_name="scanned_text.pdf",
+                        "📄 Download Text PDF", f,
+                        file_name="scanned_text.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
@@ -491,13 +609,12 @@ if uploaded_files:
             with col_pdf2:
                 with open(img_pdf_path, "rb") as f:
                     st.download_button(
-                        "🖼️ Download Image PDF",
-                        f, file_name="scanned_images.pdf",
+                        "🖼️ Download Image PDF", f,
+                        file_name="scanned_images.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
 
-        # Row 2: Other formats
         if export_docx or export_txt or export_md:
             st.markdown("")
             cols = st.columns(3)
@@ -508,8 +625,8 @@ if uploaded_files:
                 with cols[0]:
                     with open(docx_path, "rb") as f:
                         st.download_button(
-                            "📝 Download DOCX",
-                            f, file_name="scanned.docx",
+                            "📝 Download DOCX", f,
+                            file_name="scanned.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             use_container_width=True
                         )
@@ -520,8 +637,8 @@ if uploaded_files:
                 with cols[1]:
                     with open(txt_path, "rb") as f:
                         st.download_button(
-                            "📃 Download TXT",
-                            f, file_name="scanned.txt",
+                            "📃 Download TXT", f,
+                            file_name="scanned.txt",
                             mime="text/plain",
                             use_container_width=True
                         )
@@ -532,8 +649,8 @@ if uploaded_files:
                 with cols[2]:
                     with open(md_path, "rb") as f:
                         st.download_button(
-                            "📋 Download Markdown",
-                            f, file_name="scanned.md",
+                            "📋 Download Markdown", f,
+                            file_name="scanned.md",
                             mime="text/markdown",
                             use_container_width=True
                         )
@@ -561,35 +678,14 @@ else:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">✂️</span><div class="feat-title">Auto Page Detection</div><div class="feat-desc">Smart cropping — extra background auto remove</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">📊</span><div class="feat-title">Confidence Score</div><div class="feat-desc">Har word ka confidence % — galat words red me highlight</div></div>', unsafe_allow_html=True)
         st.markdown("")
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">🎉</span><div class="feat-title">Confetti Celebration</div><div class="feat-desc">PDF ready hone pe celebration animation</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">✂️</span><div class="feat-title">Auto Page Detection</div><div class="feat-desc">Smart cropping — extra background auto remove</div></div>', unsafe_allow_html=True)
 
     with col2:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌐</span><div class="feat-title">Hindi + English OCR</div><div class="feat-desc">Dono bhashayein ek saath — Hinglish bhi</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">🔊</span><div class="feat-title">Text-to-Speech</div><div class="feat-desc">OCR text ko Hindi ya English me suno</div></div>', unsafe_allow_html=True)
         st.markdown("")
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">📥</span><div class="feat-title">Multi-Format Export</div><div class="feat-desc">PDF, DOCX, TXT, Markdown — chaaro formats</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌐</span><div class="feat-title">Hindi + English OCR</div><div class="feat-desc">Dono bhashayein ek saath — Hinglish bhi</div></div>', unsafe_allow_html=True)
 
     with col3:
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">🌗</span><div class="feat-title">Theme Toggle</div><div class="feat-desc">Dark aur Light mode — apni pasand</div></div>', unsafe_allow_html=True)
-        st.markdown("")
-        st.markdown(f'<div class="feat-card"><span class="feat-icon">📑</span><div class="feat-title">Multi-Page PDF</div><div class="feat-desc">Kai images ek saath — ek PDF me merge</div></div>', unsafe_allow_html=True)
-
-# ---------- FOOTER ----------
-st.markdown("---")
-st.markdown(f"""
-<div style="text-align: center; padding: 2rem 0; color: {T['text_muted']}; font-size: 0.9rem;">
-    <div style="font-size: 1.3rem; font-weight: 800; 
-                background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                background-clip: text; margin-bottom: 0.5rem;">
-        📄 DocScan Pro
-    </div>
-    <div style="color: {T['text_muted']};">
-        Powered by Streamlit · Tesseract OCR · OpenCV
-    </div>
-    <div style="margin-top: 0.5rem; font-size: 0.8rem; opacity: 0.7;">
-        Made with ❤️ for Hindi + English documents
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(f'<div class="feat-card"><span class="feat-icon">📥</span><div class="feat-title">Multi-Format Export</div><div class="feat-desc">PDF, DOCX, TXT, Markdown — chaaro formats</div></div>', unsafe_allow
