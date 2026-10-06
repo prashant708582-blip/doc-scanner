@@ -1,9 +1,2 @@
-streamlit
-paddlepaddle
-paddleocr
-numpy
-opencv-python-headless
-Pillow
-reportlab
-imutils
-pymupdf
+paddlepaddle==3.0.0
+paddleocr==2.10.0
