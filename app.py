@@ -10,7 +10,7 @@ from scanner import (
 )
 
 st.set_page_config(
-    page_title="Auto Doc Scanner — Hindi + English",
+    page_title="Auto Doc Scanner â€” Hindi + English",
     page_icon="??",
     layout="wide"
 )
@@ -120,7 +120,7 @@ if uploaded_files:
                 handwriting=handwriting
             )
         except Exception as e:
-            st.error(f"Page {idx+1}: OCR fail — {e}")
+            st.error(f"Page {idx+1}: OCR fail â€” {e}")
             text = ""
 
         all_texts.append(text)
